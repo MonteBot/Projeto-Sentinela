@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.yml
+dataset/*.jpg
+dataset/*.png
+!dataset/.gitkeep

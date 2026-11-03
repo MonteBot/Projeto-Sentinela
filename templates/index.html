@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Tático - Torreta Autónoma</title>
+    <style>
+        body { background-color: #121212; color: #00ff00; font-family: monospace; text-align: center; padding: 15px; margin: 0; }
+        #video-container { margin: 10px auto; border: 2px solid #333; max-width: 320px; }
+        img { width: 100%; height: auto; display: block; }
+        .btn { padding: 12px 25px; font-size: 16px; font-weight: bold; cursor: pointer; border-radius: 5px; width: 100%; max-width: 320px; margin-top: 10px; }
+        .btn-auto { background-color: #dc3545; color: white; border: none; }
+        .btn-manual { background-color: #28a745; color: white; border: none; }
+        #status { font-size: 18px; margin-bottom: 10px; font-weight: bold; }
+        .telemetry { background: #1e1e1e; border: 1px solid #333; padding: 10px; max-width: 320px; margin: 10px auto; text-align: left; font-size: 14px; border-radius: 4px; }
+        .telemetry p { margin: 5px 0; }
+        .alerta-seguranca { color: #ffc107; font-weight: bold; }
+        .alerta-disparo { color: #ff4d4d; font-weight: bold; animation: piscar 0.5s infinite alternate; }
+        @keyframes piscar { from { opacity: 1; } to { opacity: 0.4; } }
+    </style>
+</head>
+<body>
+    <h1>SISTEMA DE DEFESA</h1>
+    <div id="status">ESTADO: MODO MANUAL</div>
+    
+    <div class="telemetry">
+        <p><strong>FPS da Câmara:</strong> <span id="fps">--</span></p>
+        <p><strong>Estado da Trava:</strong> <span id="trava" style="color: #00ff00;">Inativa / Livre</span></p>
+        <p><strong>Estado do Disparo:</strong> <span id="disparo">Em espera</span></p>
+    </div>
+
+    <div id="video-container">
+        <img src="{{ url_for('video_feed') }}" alt="Câmara">
+    </div>
+
+    <button id="toggle-btn" class="btn btn-auto" onclick="toggleMode()">ATIVAR MODO AUTOMÁTICO</button>
+
+    <script>
+        function toggleMode() {
+            fetch('/toggle_mode', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                const btn = document.getElementById('toggle-btn');
+                const status = document.getElementById('status');
+                if (data.modo === 'AUTO') {
+                    btn.className = 'btn btn-manual';
+                    btn.innerText = 'VOLTAR PARA MANUAL';
+                    status.innerText = 'ESTADO: MODO AUTOMÁTICO (PERIGO)';
+                    status.style.color = '#dc3545';
+                } else {
+                    btn.className = 'btn btn-auto';
+                    btn.innerText = 'ATIVAR MODO AUTOMÁTICO';
+                    status.innerText = 'ESTADO: MODO MANUAL';
+                    status.style.color = '#28a745';
+                }
+            });
+        }
+
+        // Atualiza a telemetria em tempo real a cada 500ms
+        setInterval(() => {
+            fetch('/telemetria')
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('fps').innerText = data.fps;
+                
+                const spanTrava = document.getElementById('trava');
+                spanTrava.innerText = data.mensagem_trava;
+                spanTrava.className = data.travado ? "alerta-seguranca" : "";
+
+                const spanDisparo = document.getElementById('disparo');
+                spanDisparo.innerText = data.mensagem_disparo;
+                spanDisparo.className = data.disparando ? "alerta-disparo" : "";
+            });
+        }, 500);
+    </script>
+</body>
+</html>

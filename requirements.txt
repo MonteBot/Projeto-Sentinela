@@ -1,0 +1,6 @@
+opencv-python
+opencv-contrib-python
+flask
+gpiozero
+evdev
+pyserial

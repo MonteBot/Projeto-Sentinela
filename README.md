@@ -1,6 +1,3 @@
-Basta clicar no botão de copiar no canto superior deste bloco abaixo e colar tudo diretamente dentro do seu arquivo `README.md`:
-
-```markdown
 # Projeto Sentinela
 
 Sistema de torreta automatizada. O projeto une visão computacional e eletrônica para detectar e rastrear rostos em tempo real.

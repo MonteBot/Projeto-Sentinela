@@ -1,6 +1,4 @@
 __pycache__/
 *.pyc
-*.yml
-dataset/*.jpg
-dataset/*.png
-!dataset/.gitkeep
+torreta/blacklist/*.jpg
+torreta/blacklist/*.yml

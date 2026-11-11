@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MonteBot | Painel de Controle</title>
+    <style>
+        :root {
+            --bg: #0b0e14;
+            --card: #151922;
+            --border: #262c3a;
+            --text: #e6edf3;
+            --muted: #8b949e;
+            --blue: #3b82f6;
+            --red: #ef4444;
+            --green: #10b981;
+            --amber: #f59e0b;
+        }
+        * { box-sizing: border-box; user-select: none; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', monospace, sans-serif;
+            margin: 0;
+            padding: 15px;
+        }
+        .header {
+            max-width: 1140px;
+            margin: 0 auto 15px auto;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card);
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+        .header h2 { margin: 0; font-size: 1.2rem; }
+        .badges { display: flex; gap: 10px; flex-wrap: wrap; }
+        .badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            background: #1f2937;
+            border: 1px solid var(--border);
+        }
+        .badge.gp-on { background: #064e3b; border-color: var(--green); color: #a7f3d0; }
+        .badge.trava-on { background: #7f1d1d; border-color: var(--red); color: #fecaca; }
+        .grid-main {
+            max-width: 1140px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 15px;
+        }
+        @media (max-width: 880px) { .grid-main { grid-template-columns: 1fr; } }
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 15px;
+        }
+        .video-wrapper {
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: #000;
+        }
+        .video-wrapper img { width: 100%; display: block; }
+        .section-title {
+            font-size: 0.8rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            margin: 0 0 8px 0;
+        }
+        .mode-group {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .btn-mode {
+            padding: 10px 6px;
+            background: #1e2430;
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .btn-mode.active-0 { background: var(--blue); border-color: var(--blue); color: #fff; }
+        .btn-mode.active-1 { background: var(--red); border-color: var(--red); color: #fff; }
+        .btn-mode.active-2 { background: var(--amber); border-color: var(--amber); color: #000; }
+        .blacklist-card {
+            background: #0f131a;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 14px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .alvo-thumb {
+            width: 68px;
+            height: 68px;
+            border-radius: 8px;
+            border: 2px solid var(--red);
+            object-fit: cover;
+            background: #1e2430;
+            flex-shrink: 0;
+        }
+        .bl-actions {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .btn-upload {
+            padding: 7px 10px;
+            background: #1f2937;
+            color: var(--text);
+            border: 1px solid var(--amber);
+            border-radius: 6px;
+            font-size: 0.76rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+        }
+        .btn-upload:hover { background: var(--amber); color: #000; }
+        .speed-box { margin-bottom: 12px; text-align: left; font-size: 0.8rem; }
+        .speed-box input { width: 100%; margin-top: 4px; }
+        .dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 56px);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .btn-pad {
+            background: #21262d;
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            touch-action: none;
+        }
+        .btn-pad:active { background: var(--blue); color: #fff; }
+        .btn-stop { background: #30363d; font-size: 0.78rem; }
+        .btn-fire {
+            width: 100%;
+            padding: 14px;
+            background: #7f1d1d;
+            color: #fca5a5;
+            border: 1px solid var(--red);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 10px;
+            touch-action: none;
+        }
+        .btn-fire:active, .btn-fire.active { background: var(--red); color: #fff; }
+        .aux-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .btn-aux {
+            padding: 9px;
+            background: #1e2430;
+            color: var(--muted);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-aux:hover { color: #fff; border-color: var(--blue); }
+        .telemetry {
+            margin-top: 12px;
+            padding: 10px;
+            background: #0f131a;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            font-size: 0.76rem;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>MONTEBOT — CONTROLE E VISÃO (TRAVA PEITO ATIVA)</h2>
+        <div class="badges">
+            <div class="badge gp-on" id="fps-badge">FPS: 0.0</div>
+            <div class="badge" id="trava-badge">SEGURANÇA: MIRA LIVRE</div>
+            <div class="badge" id="gp-badge">CONTROLE: AGUARDANDO</div>
+            <div class="badge" id="porta-badge">SERIAL: {{ porta }}</div>
+        </div>
+    </div>
+
+    <div class="grid-main">
+        <div class="panel">
+            <div class="video-wrapper">
+                <img src="/stream" alt="Stream da Câmera">
+            </div>
+            <div class="telemetry">
+                <strong>Status da Torreta:</strong> <span id="st-txt">MODO MANUAL ATIVO</span><br>
+                <strong>Atalhos:</strong> Gamepad (Analógicos + RT/R2/A atira + LB muda modo) | Teclado (WASD/Setas + Espaço atira + C centraliza)
+            </div>
+        </div>
+
+        <div class="panel">
+            <p class="section-title">1. Modo de Operação</p>
+            <div class="mode-group">
+                <button id="m0" class="btn-mode active-0" onclick="setModo(0)">MANUAL</button>
+                <button id="m1" class="btn-mode" onclick="setModo(1)">ASSASSINO</button>
+                <button id="m2" class="btn-mode" onclick="setModo(2)">BLACKLIST</button>
+            </div>
+
+            <p class="section-title">2. Alvo da Blacklist (Foto da Pessoa)</p>
+            <div class="blacklist-card">
+                <img id="img-alvo" class="alvo-thumb" src="/foto_alvo" onerror="this.style.opacity=0.2" alt="Alvo">
+                <div class="bl-actions">
+                    <label class="btn-upload">
+                        ENVIAR FOTO DA PESSOA
+                        <input type="file" id="input-foto" accept="image/*" style="display:none" onchange="enviarFotoAlvo(this)">
+                    </label>
+                    <button class="btn-upload" onclick="capturarDaCamera()">CAPTURAR ROSTO DA CÂMERA</button>
+                    <span id="bl-msg" style="font-size:0.72rem; color:var(--green);">
+                        {% if tem_alvo %}Alvo ativo na Blacklist{% else %}Nenhuma foto enviada{% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <div class="speed-box">
+                <label>Tolerância Reconhecimento: <strong id="lim-val">{{ limite }}</strong></label>
+                <input type="range" min="50" max="120" value="{{ limite }}" onchange="ajustarSensibilidade(this.value)" oninput="document.getElementById('lim-val').innerText = this.value">
+            </div>
+
+            <div class="speed-box">
+                <label>Velocidade Manual: <strong id="vel-val">75</strong>% | Eixos: <strong id="axes-debug">0, 0</strong></label>
+                <input type="range" id="vel-slider" min="20" max="100" value="75" oninput="document.getElementById('vel-val').innerText = this.value">
+            </div>
+
+            <div class="dpad">
+                <button class="btn-pad" onpointerdown="iniciarBotao(-1, 1)" onpointerup="pararBotao()" onpointerleave="pararBotao()" onpointercancel="pararBotao()">↖</button>
+                <button class="btn-pad" onpointerdown="iniciarBotao(0, 1)" onpointerup="pararBotao()" onpointerleave="pararBotao()" onpointercancel="pararBotao()">⬆</button>
+                <button class="btn-pad" onpointerdown="iniciarBotao(1, 1)" onpointerup="pararBotao()" onpointerleave="pararBotao()" onpointercancel="pararBotao()">↗</button>
+
+                <button class="btn-pad" onpointerdown="iniciarBotao(-1, 0)" onpointerup="pararBotao()" onpointerleave="pararBotao()" onpointercancel="pararBotao()">⬅</button>
+                <button class="btn-pad btn-stop" onclick="pararBotao()">PARAR</button>
+                <button class="btn-pad" onpointerdown="iniciarBotao(1, 0)" onpointerup="pararBotao()" onpointerleave="pararBotao()" onpointercancel="pararBotao()">➡</button>
+
+                <button class="btn-pad" onpointerdown="iniciarBotao(-1, -1)" onpointerup="pararBotao()" onpointerleave="pararBotao()" onpointercancel="pararBotao()">↙</button>
+                <button class="btn-pad" onpointerdown="iniciarBotao(0, -1)" onpointerup="pararBotao()" onpointerleave="pararBotao()" onpointercancel="pararBotao()">⬇</button>
+                <button class="btn-pad" onpointerdown="iniciarBotao(1, -1)" onpointerup="pararBotao()" onpointerleave="pararBotao()" onpointercancel="pararBotao()">↘</button>
+            </div>
+
+            <button id="btn-fire-ui" class="btn-fire" onpointerdown="atirarManual(1)" onpointerup="atirarManual(0)" onpointerleave="atirarManual(0)" onpointercancel="atirarManual(0)">
+                DISPARAR (RT / R2 / BOTÃO A / ESPAÇO)
+            </button>
+
+            <div class="aux-group">
+                <button class="btn-aux" onclick="cmdEspecial('A 0 0 0')">CENTRO 0° (Botão X / C)</button>
+                <button class="btn-aux" onclick="cmdEspecial('Z')">ZERAR AQUI (Botão Y / Z)</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let modoAtual = 0;
+        let ultimoVx = 0, ultimoVy = 0, ultimoTiro = 0;
+        let ultimoEnvioMs = 0;
+        let botaoTelaAtivo = false;
+        let gamepadMovendo = false;
+        let seqCmd = 0;
+        let timerBotao = null;
+
+        function enviarFotoAlvo(input) {
+            if (!input.files || !input.files[0]) return;
+            const formData = new FormData();
+            formData.append('foto', input.files[0]);
+            document.getElementById('bl-msg').innerText = 'Processando foto...';
+
+            fetch('/upload_blacklist', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(d => {
+                    document.getElementById('bl-msg').innerText = d.msg;
+                    if (d.ok) {
+                        const img = document.getElementById('img-alvo');
+                        img.style.opacity = 1;
+                        img.src = '/foto_alvo?t=' + Date.now();
+                        setModo(2);
+                    }
+                })
+                .catch(() => { document.getElementById('bl-msg').innerText = 'Erro ao enviar.'; });
+        }
+
+        function capturarDaCamera() {
+            document.getElementById('bl-msg').innerText = 'Capturando...';
+            fetch('/capturar_blacklist', { method: 'POST' })
+                .then(r => r.json())
+                .then(d => {
+                    document.getElementById('bl-msg').innerText = d.msg;
+                    if (d.ok) {
+                        const img = document.getElementById('img-alvo');
+                        img.style.opacity = 1;
+                        img.src = '/foto_alvo?t=' + Date.now();
+                        setModo(2);
+                    }
+                });
+        }
+
+        function ajustarSensibilidade(val) {
+            fetch(`/set_sensibilidade/${val}`).catch(() => {});
+        }
+
+        function getVelMax() {
+            return parseInt(document.getElementById('vel-slider').value);
+        }
+
+        function enviarComando(vx, vy, g, forcar = false) {
+            vx = Math.round(Math.max(-100, Math.min(100, vx)));
+            vy = Math.round(Math.max(-100, Math.min(100, vy)));
+            g = g ? 1 : 0;
+
+            const agora = performance.now();
+            const mudouParada = (vx === 0 && vy === 0 && (ultimoVx !== 0 || ultimoVy !== 0));
+            const mudouTiro = (g !== ultimoTiro);
+            const mudouVel = (Math.abs(vx - ultimoVx) >= 3 || Math.abs(vy - ultimoVy) >= 3);
+
+            if (!forcar && !mudouParada && !mudouTiro && (!mudouVel || (agora - ultimoEnvioMs < 60))) {
+                return;
+            }
+
+            ultimoVx = vx; ultimoVy = vy; ultimoTiro = g; ultimoEnvioMs = agora;
+            document.getElementById('axes-debug').innerText = `X:${vx} Y:${vy} T:${g}`;
+            document.getElementById('btn-fire-ui').classList.toggle('active', g === 1);
+
+            if (modoAtual !== 0) {
+                modoAtual = 0;
+                atualizarBotoesModo(0);
+            }
+            seqCmd += 1;
+            fetch(`/cmd?vx=${vx}&vy=${vy}&g=${g}&seq=${seqCmd}`, { keepalive: true }).catch(() => {});
+        }
+
+        function iniciarBotao(dx, dy) {
+            if (timerBotao) { clearInterval(timerBotao); timerBotao = null; }
+            botaoTelaAtivo = true;
+            const enviar = () => {
+                if (!botaoTelaAtivo) return;
+                const v = getVelMax();
+                enviarComando(dx * v, dy * v, ultimoTiro, true);
+            };
+            enviar();
+            timerBotao = setInterval(enviar, 120);
+        }
+
+        function pararBotao() {
+            if (timerBotao) { clearInterval(timerBotao); timerBotao = null; }
+            if (!botaoTelaAtivo && ultimoVx === 0 && ultimoVy === 0) return;
+            botaoTelaAtivo = false;
+            enviarComando(0, 0, 0, true);
+        }
+
+        window.addEventListener('pointerup', () => { if (botaoTelaAtivo) pararBotao(); });
+        window.addEventListener('blur', () => { pararBotao(); });
+
+        function atirarManual(g) { enviarComando(ultimoVx, ultimoVy, g, true); }
+
+        function cmdEspecial(codigo) {
+            setModo(0);
+            fetch(`/especial?c=${encodeURIComponent(codigo)}`).catch(() => {});
+        }
+
+        function atualizarBotoesModo(m) {
+            document.getElementById('m0').className = 'btn-mode' + (m === 0 ? ' active-0' : '');
+            document.getElementById('m1').className = 'btn-mode' + (m === 1 ? ' active-1' : '');
+            document.getElementById('m2').className = 'btn-mode' + (m === 2 ? ' active-2' : '');
+        }
+
+        function setModo(m) {
+            modoAtual = m;
+            atualizarBotoesModo(m);
+            fetch(`/set_modo/${m}`)
+                .then(r => r.json())
+                .then(d => { document.getElementById('st-txt').innerText = d.status; })
+                .catch(() => {});
+        }
+
+        setInterval(() => {
+            fetch('/status')
+                .then(r => r.json())
+                .then(d => {
+                    document.getElementById('st-txt').innerText = d.status_texto;
+                    document.getElementById('porta-badge').innerText = 'SERIAL: ' + d.porta;
+                    document.getElementById('fps-badge').innerText = 'FPS: ' + (typeof d.fps === 'number' ? d.fps.toFixed(1) : '0.0');
+                    const tb = document.getElementById('trava-badge');
+                    if (d.trava_rosto) {
+                        tb.className = 'badge trava-on';
+                        tb.innerText = 'TRAVA ATIVA: ROSTO PROTEGIDO';
+                    } else {
+                        tb.className = 'badge';
+                        tb.innerText = 'SEGURANÇA: MIRA LIVRE';
+                    }
+                })
+                .catch(() => {});
+        }, 500);
+
+        const teclas = new Set();
+        function atualizarTeclado() {
+            let dx = 0, dy = 0;
+            if (teclas.has('KeyA') || teclas.has('ArrowLeft'))  dx -= 1;
+            if (teclas.has('KeyD') || teclas.has('ArrowRight')) dx += 1;
+            if (teclas.has('KeyW') || teclas.has('ArrowUp'))    dy += 1;
+            if (teclas.has('KeyS') || teclas.has('ArrowDown'))  dy -= 1;
+            const tiro = teclas.has('Space') ? 1 : 0;
+            const v = getVelMax();
+            enviarComando(dx * v, dy * v, tiro, true);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
+            if (e.code === 'Digit1') { setModo(0); return; }
+            if (e.code === 'Digit2') { setModo(1); return; }
+            if (e.code === 'Digit3') { setModo(2); return; }
+            if (e.code === 'KeyC')   { cmdEspecial('A 0 0 0'); return; }
+            if (e.code === 'KeyZ')   { cmdEspecial('Z'); return; }
+            if (!teclas.has(e.code)) { teclas.add(e.code); atualizarTeclado(); }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (teclas.has(e.code)) { teclas.delete(e.code); atualizarTeclado(); }
+        });
+
+        let btnAnt = {};
+        function aplicarDeadzone(valor, dz = 0.18) {
+            if (Math.abs(valor) < dz) return 0;
+            return (valor - Math.sign(valor) * dz) / (1 - dz);
+        }
+
+        function loopGamepad() {
+            const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+            let gp = null;
+            for (let i = 0; i < gamepads.length; i++) {
+                if (gamepads[i] && gamepads[i].connected) { gp = gamepads[i]; break; }
+            }
+
+            if (gp && teclas.size === 0 && !botaoTelaAtivo) {
+                const b = document.getElementById('gp-badge');
+                if (!b.classList.contains('gp-on')) {
+                    b.className = 'badge gp-on';
+                    b.innerText = 'CONTROLE ATIVO';
+                }
+
+                let eixoX = aplicarDeadzone(gp.axes[0] || 0);
+                let eixoY = aplicarDeadzone(-(gp.axes[1] || 0));
+
+                if (eixoX === 0 && eixoY === 0 && gp.axes.length >= 4) {
+                    eixoX = aplicarDeadzone(gp.axes[2] || 0);
+                    eixoY = aplicarDeadzone(-(gp.axes[3] || 0));
+                }
+
+                if (gp.buttons[12]?.pressed) eixoY = 1;
+                if (gp.buttons[13]?.pressed) eixoY = -1;
+                if (gp.buttons[14]?.pressed) eixoX = -1;
+                if (gp.buttons[15]?.pressed) eixoX = 1;
+
+                const atirando = (
+                    gp.buttons[7]?.pressed || (gp.buttons[7]?.value > 0.3) ||
+                    gp.buttons[5]?.pressed ||
+                    gp.buttons[0]?.pressed
+                ) ? 1 : 0;
+
+                if (gp.buttons[2]?.pressed && !btnAnt[2]) cmdEspecial('A 0 0 0');
+                if (gp.buttons[3]?.pressed && !btnAnt[3]) cmdEspecial('Z');
+                if (gp.buttons[4]?.pressed && !btnAnt[4]) setModo((modoAtual + 1) % 3);
+
+                btnAnt[2] = gp.buttons[2]?.pressed;
+                btnAnt[3] = gp.buttons[3]?.pressed;
+                btnAnt[4] = gp.buttons[4]?.pressed;
+
+                const vMax = getVelMax();
+                const vx = Math.round(eixoX * vMax);
+                const vy = Math.round(eixoY * vMax);
+
+                if (vx !== 0 || vy !== 0 || atirando !== 0) {
+                    gamepadMovendo = true;
+                    enviarComando(vx, vy, atirando);
+                } else if (gamepadMovendo) {
+                    gamepadMovendo = false;
+                    enviarComando(0, 0, 0, true);
+                }
+            }
+            requestAnimationFrame(loopGamepad);
+        }
+
+        requestAnimationFrame(loopGamepad);
+    </script>
+</body>
+</html>

@@ -1,6 +1,5 @@
 opencv-python
 opencv-contrib-python
+numpy
 flask
-gpiozero
-evdev
 pyserial

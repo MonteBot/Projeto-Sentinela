@@ -70,7 +70,8 @@ def receber_cmd():
     vy = request.args.get('vy', default=0, type=int)
     g = request.args.get('g', default=0, type=int)
     seq = request.args.get('seq', default=None, type=int)
-    torreta.atualizar_manual(vx, vy, g, seq)
+    cid = request.args.get('cid', default=None, type=str)
+    torreta.atualizar_manual(vx, vy, g, seq, cid)
     return "OK", 200
 
 

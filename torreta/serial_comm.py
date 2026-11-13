@@ -11,6 +11,7 @@ class ControleTorreta:
         self.lock = threading.Lock()
         self.trava_seguranca_rosto = False
         self.fps_camera = 0.0
+        self.ultimo_cid_manual = None
         self.ultimo_seq_manual = -1
         self.ultimo_ts_manual = 0.0
         self.pausa_ate_ts = 0.0
@@ -47,10 +48,13 @@ class ControleTorreta:
             if self.trava_seguranca_rosto:
                 self.estado["gatilho"] = 0
 
-    def atualizar_manual(self, vx, vy, gatilho, seq=None):
+    def atualizar_manual(self, vx, vy, gatilho, seq=None, cid=None):
         vx_lim = max(-100, min(100, int(vx)))
         vy_lim = max(-100, min(100, int(vy)))
         with self.lock:
+            if cid is not None and cid != self.ultimo_cid_manual:
+                self.ultimo_cid_manual = cid
+                self.ultimo_seq_manual = -1
             if seq is not None and seq > 0:
                 if seq < self.ultimo_seq_manual and (vx_lim != 0 or vy_lim != 0 or int(gatilho) != 0):
                     return
@@ -119,12 +123,6 @@ class ControleTorreta:
                 with self.lock:
                     cmd_esp = self.estado["cmd_especial"]
                     self.estado["cmd_especial"] = None
-                    if self.estado["modo"] == 0 and (agora - self.ultimo_ts_manual > 0.35):
-                        if self.estado["vx"] != 0 or self.estado["vy"] != 0 or self.estado["gatilho"] != 0:
-                            self.estado["vx"] = 0
-                            self.estado["vy"] = 0
-                            self.estado["gatilho"] = 0
-                            self.estado["status_texto"] = "MANUAL (X:0 Y:0 T:0)"
                     vx = self.estado["vx"]
                     vy = self.estado["vy"]
                     g = 0 if self.trava_seguranca_rosto else self.estado["gatilho"]

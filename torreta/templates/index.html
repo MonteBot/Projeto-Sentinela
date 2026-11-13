@@ -278,7 +278,7 @@
         let botaoTelaAtivo = false;
         let gamepadMovendo = false;
         let seqCmd = 0;
-        let timerBotao = null;
+        const clientId = Math.random().toString(36).slice(2, 10);
 
         function enviarFotoAlvo(input) {
             if (!input.files || !input.files[0]) return;
@@ -346,29 +346,26 @@
                 atualizarBotoesModo(0);
             }
             seqCmd += 1;
-            fetch(`/cmd?vx=${vx}&vy=${vy}&g=${g}&seq=${seqCmd}`, { keepalive: true }).catch(() => {});
+            fetch(`/cmd?vx=${vx}&vy=${vy}&g=${g}&cid=${clientId}&seq=${seqCmd}`, { keepalive: true }).catch(() => {});
         }
 
         function iniciarBotao(dx, dy) {
-            if (timerBotao) { clearInterval(timerBotao); timerBotao = null; }
             botaoTelaAtivo = true;
-            const enviar = () => {
-                if (!botaoTelaAtivo) return;
-                const v = getVelMax();
-                enviarComando(dx * v, dy * v, ultimoTiro, true);
-            };
-            enviar();
-            timerBotao = setInterval(enviar, 120);
+            const v = getVelMax();
+            enviarComando(dx * v, dy * v, ultimoTiro, true);
         }
 
         function pararBotao() {
-            if (timerBotao) { clearInterval(timerBotao); timerBotao = null; }
             if (!botaoTelaAtivo && ultimoVx === 0 && ultimoVy === 0) return;
             botaoTelaAtivo = false;
             enviarComando(0, 0, 0, true);
         }
 
         window.addEventListener('pointerup', () => { if (botaoTelaAtivo) pararBotao(); });
+        window.addEventListener('pointercancel', () => { if (botaoTelaAtivo) pararBotao(); });
+        window.addEventListener('mouseup', () => { if (botaoTelaAtivo) pararBotao(); });
+        window.addEventListener('touchend', () => { if (botaoTelaAtivo) pararBotao(); });
+        window.addEventListener('touchcancel', () => { if (botaoTelaAtivo) pararBotao(); });
         window.addEventListener('blur', () => { pararBotao(); });
 
         function atirarManual(g) { enviarComando(ultimoVx, ultimoVy, g, true); }

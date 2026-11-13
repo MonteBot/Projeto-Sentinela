@@ -3,16 +3,17 @@
 // ============================================================================
 // 1. CONFIGURAÇÃO DE SILÊNCIO E JUMPERS
 // ============================================================================
-// true = Com os 3 jumpers verdes instalados embaixo dos drivers DRV8825 X e Y (1/32 passo)
+// true = Com os 3 jumpers instalados embaixo dos drivers DRV8825 X e Y (1/32 passo)
 // false = Sem jumpers embaixo dos drivers X e Y (passo cheio = 200 passos/volta)
 #define USANDO_JUMPERS_MICROSTEP  true
 
-// true = Desenergiza os motores 300ms após parar (zero ruído e zero aquecimento parado)
+// true  = Desenergiza os motores 400ms após parar (zero chiado/barulho e zero aquecimento parado)
+// false = Mantém as bobinas energizadas parado
 #define AUTO_SLEEP_PARADO         true
+#define TEMPO_SLEEP_MS            400UL
 
 // ============================================================================
 // PINAGEM CNC SHIELD V4 (ARDUINO NANO)
-// Caso os motores travem mas não girem no autoteste, inverta STEP (2, 3) e DIR (5, 6)
 // ============================================================================
 #define X_DIR_PIN    2
 #define Y_DIR_PIN    3
@@ -22,30 +23,39 @@
 #define GATILHO_PIN  A3
 
 #define MASCARA_STEPS ((1 << X_STEP_PIN) | (1 << Y_STEP_PIN))
+#define MASCARA_DIRS  ((1 << X_DIR_PIN)  | (1 << Y_DIR_PIN))
 
 #if USANDO_JUMPERS_MICROSTEP
   #define PASSOS_POR_VOLTA_X  6400.0f
   #define PASSOS_POR_VOLTA_Y  6400.0f
-  #define MAX_SPS_X           1800.0f
-  #define MAX_SPS_Y           1400.0f
+  #define MAX_SPS_X           1600.0f
+  #define MAX_SPS_Y           1000.0f
 #else
   #define PASSOS_POR_VOLTA_X  200.0f
   #define PASSOS_POR_VOLTA_Y  200.0f
-  #define MAX_SPS_X           180.0f
-  #define MAX_SPS_Y           140.0f
+  #define MAX_SPS_X           160.0f
+  #define MAX_SPS_Y           110.0f
 #endif
 
 const float PASSOS_POR_GRAU_X = PASSOS_POR_VOLTA_X / 360.0f;
 const float PASSOS_POR_GRAU_Y = PASSOS_POR_VOLTA_Y / 360.0f;
 
-#define ANGULO_X_MIN  -135.0f
-#define ANGULO_X_MAX   135.0f
-#define ANGULO_Y_MIN   -35.0f
-#define ANGULO_Y_MAX    45.0f
+#define ANGULO_X_MIN  -720.0f
+#define ANGULO_X_MAX   720.0f
+#define ANGULO_Y_MIN  -360.0f
+#define ANGULO_Y_MAX   360.0f
 
-#define ACELERACAO_X    180.0f
-#define ACELERACAO_Y    150.0f
-#define TIMER_FREQ      40000UL
+// Rampas calibradas para alto torque sem estol (especialmente no 17HS4023 do eixo Y)
+#define ACELERACAO_X      150.0f
+#define ACELERACAO_Y      110.0f
+#define DESACELERACAO_X   240.0f
+#define DESACELERACAO_Y   180.0f
+
+// 25 kHz continua acima do limite audível (20 kHz), com +38% de folga na CPU do ATmega328P
+#define TIMER_FREQ        25000UL
+
+const float FATOR_INC_X = (MAX_SPS_X * 65536.0f) / (100.0f * (float)TIMER_FREQ);
+const float FATOR_INC_Y = (MAX_SPS_Y * 65536.0f) / (100.0f * (float)TIMER_FREQ);
 
 volatile uint16_t incX = 0;
 volatile uint16_t incY = 0;
@@ -54,21 +64,29 @@ volatile int8_t   sentidoY = 1;
 volatile int32_t  posPassosX = 0;
 volatile int32_t  posPassosY = 0;
 
-int32_t minPassosX, maxPassosX;
-int32_t minPassosY, maxPassosY;
-
 bool modoPosicaoAngular = false;
+bool driverEnergizado = false;
 float anguloAlvoX = 0.0f, anguloAlvoY = 0.0f;
 float velAlvoX = 0.0f, velAlvoY = 0.0f;
 float velAtualX = 0.0f, velAtualY = 0.0f;
 
 unsigned long ultimoComandoMs = 0;
 unsigned long ultimoMovimentoMs = 0;
+unsigned long ultimoWakeMs = 0;
 unsigned long ultimoCalculoRampaUs = 0;
 
 char bufferSerial[40];
 uint8_t idxBuffer = 0;
 
+// Cache local para evitar noInterrupts() desnecessário quando velocidade não mudou
+uint16_t cacheIncX = 0xFFFF;
+uint16_t cacheIncY = 0xFFFF;
+int8_t   cacheSX   = 0;
+int8_t   cacheSY   = 0;
+
+// ============================================================================
+// INTERRUPÇÃO DDS DE 25 kHz (ENXUTA E LIVRE DE JITTER)
+// ============================================================================
 ISR(TIMER1_COMPA_vect) {
   PORTD &= ~MASCARA_STEPS;
 
@@ -77,24 +95,20 @@ ISR(TIMER1_COMPA_vect) {
   uint8_t mascaraPulso = 0;
 
   if (incX > 0) {
-    if ((sentidoX > 0 && posPassosX < maxPassosX) || (sentidoX < 0 && posPassosX > minPassosX)) {
-      uint16_t antX = acumX;
-      acumX += incX;
-      if (acumX < antX) {
-        mascaraPulso |= (1 << X_STEP_PIN);
-        posPassosX += sentidoX;
-      }
+    uint16_t antX = acumX;
+    acumX += incX;
+    if (acumX < antX) {
+      mascaraPulso |= (1 << X_STEP_PIN);
+      posPassosX += sentidoX;
     }
   }
 
   if (incY > 0) {
-    if ((sentidoY > 0 && posPassosY < maxPassosY) || (sentidoY < 0 && posPassosY > minPassosY)) {
-      uint16_t antY = acumY;
-      acumY += incY;
-      if (acumY < antY) {
-        mascaraPulso |= (1 << Y_STEP_PIN);
-        posPassosY += sentidoY;
-      }
+    uint16_t antY = acumY;
+    acumY += incY;
+    if (acumY < antY) {
+      mascaraPulso |= (1 << Y_STEP_PIN);
+      posPassosY += sentidoY;
     }
   }
 
@@ -103,49 +117,71 @@ ISR(TIMER1_COMPA_vect) {
   }
 }
 
+void acordarDrivers() {
+  if (!driverEnergizado) {
+    digitalWrite(ENABLE_PIN, LOW);
+    driverEnergizado = true;
+    unsigned long agora = millis();
+    ultimoWakeMs = agora;
+    ultimoMovimentoMs = agora;
+  }
+}
+
+// ============================================================================
+// APLICAÇÃO DE VELOCIDADE ATÔMICA NO HARDWARE (SEM JITTER QUANDO CONSTANTE)
+// ============================================================================
 void aplicarVelocidadeHardware(float pctX, float pctY) {
   int8_t sX = (pctX >= 0.0f) ? 1 : -1;
   int8_t sY = (pctY >= 0.0f) ? 1 : -1;
 
-  if (sX > 0) PORTD |= (1 << X_DIR_PIN);
-  else        PORTD &= ~(1 << X_DIR_PIN);
+  uint16_t novoIncX = (fabs(pctX) < 1.5f) ? 0 : (uint16_t)(fabs(pctX) * FATOR_INC_X);
+  uint16_t novoIncY = (fabs(pctY) < 1.5f) ? 0 : (uint16_t)(fabs(pctY) * FATOR_INC_Y);
 
-  if (sY > 0) PORTD |= (1 << Y_DIR_PIN);
-  else        PORTD &= ~(1 << Y_DIR_PIN);
-
-  float spsX = (fabs(pctX) / 100.0f) * MAX_SPS_X;
-  float spsY = (fabs(pctY) / 100.0f) * MAX_SPS_Y;
-
-  uint16_t novoIncX = (fabs(pctX) < 1.5f) ? 0 : (uint16_t)((spsX * 65536.0f) / TIMER_FREQ);
-  uint16_t novoIncY = (fabs(pctY) < 1.5f) ? 0 : (uint16_t)((spsY * 65536.0f) / TIMER_FREQ);
-
+  unsigned long agora = millis();
   if (novoIncX > 0 || novoIncY > 0) {
-    digitalWrite(ENABLE_PIN, LOW);
-    ultimoMovimentoMs = millis();
-  } else if (AUTO_SLEEP_PARADO && (millis() - ultimoMovimentoMs > 300)) {
+    acordarDrivers();
+    ultimoMovimentoMs = agora;
+  } else if (AUTO_SLEEP_PARADO && driverEnergizado && (agora - ultimoMovimentoMs > TEMPO_SLEEP_MS)) {
     digitalWrite(ENABLE_PIN, HIGH);
+    driverEnergizado = false;
   }
 
-  noInterrupts();
-  sentidoX = sX;
-  sentidoY = sY;
-  incX = novoIncX;
-  incY = novoIncY;
-  interrupts();
+  // Só toca em PORTD e entra em noInterrupts() se passo ou sentido mudarem
+  if (novoIncX != cacheIncX || novoIncY != cacheIncY || sX != cacheSX || sY != cacheSY) {
+    uint8_t dirs = 0;
+    if (sX > 0) dirs |= (1 << X_DIR_PIN);
+    if (sY > 0) dirs |= (1 << Y_DIR_PIN);
+
+    noInterrupts();
+    PORTD = (PORTD & ~MASCARA_DIRS) | dirs;
+    sentidoX = sX;
+    sentidoY = sY;
+    incX = novoIncX;
+    incY = novoIncY;
+    interrupts();
+
+    cacheIncX = novoIncX;
+    cacheIncY = novoIncY;
+    cacheSX   = sX;
+    cacheSY   = sY;
+  }
 }
 
+// ============================================================================
+// LEITURA E INTERPRETAÇÃO DOS COMANDOS SERIAIS
+// ============================================================================
 void processarComando(char* cmd) {
   if (cmd[0] == 'Z' || cmd[0] == 'z') {
     noInterrupts();
     posPassosX = 0;
     posPassosY = 0;
     interrupts();
-    velAlvoX = 0;
-    velAlvoY = 0;
-    velAtualX = 0;
-    velAtualY = 0;
+    velAlvoX = 0.0f;
+    velAlvoY = 0.0f;
+    velAtualX = 0.0f;
+    velAtualY = 0.0f;
     modoPosicaoAngular = false;
-    aplicarVelocidadeHardware(0, 0);
+    aplicarVelocidadeHardware(0.0f, 0.0f);
     return;
   }
 
@@ -170,10 +206,8 @@ void processarComando(char* cmd) {
   int vx = 0, vy = 0, g = 0;
   if (sscanf(cmd, "%d %d %d", &vx, &vy, &g) >= 2) {
     modoPosicaoAngular = false;
-    velAlvoX = constrain(vx, -100, 100);
-    velAlvoY = constrain(vy, -100, 100);
-    if (velAlvoX == 0) velAtualX = 0;
-    if (velAlvoY == 0) velAtualY = 0;
+    velAlvoX = (float)constrain(vx, -100, 100);
+    velAlvoY = (float)constrain(vy, -100, 100);
     digitalWrite(GATILHO_PIN, (g > 0) ? HIGH : LOW);
     ultimoComandoMs = millis();
   }
@@ -195,7 +229,8 @@ void lerSerial() {
 }
 
 void autotesteSilencioso() {
-  digitalWrite(ENABLE_PIN, LOW);
+  acordarDrivers();
+  delay(10);
   const unsigned long tMs = 600;
   unsigned long t0 = millis();
   while (millis() - t0 < tMs) {
@@ -209,7 +244,11 @@ void autotesteSilencioso() {
     aplicarVelocidadeHardware(v, v * 0.6f);
     delay(4);
   }
-  aplicarVelocidadeHardware(0, 0);
+  aplicarVelocidadeHardware(0.0f, 0.0f);
+  if (AUTO_SLEEP_PARADO) {
+    digitalWrite(ENABLE_PIN, HIGH);
+    driverEnergizado = false;
+  }
   noInterrupts();
   posPassosX = 0;
   posPassosY = 0;
@@ -227,18 +266,14 @@ void setup() {
   pinMode(GATILHO_PIN, OUTPUT);
 
   digitalWrite(ENABLE_PIN, LOW);
+  driverEnergizado = true;
   digitalWrite(GATILHO_PIN, LOW);
-
-  minPassosX = (int32_t)(ANGULO_X_MIN * PASSOS_POR_GRAU_X);
-  maxPassosX = (int32_t)(ANGULO_X_MAX * PASSOS_POR_GRAU_X);
-  minPassosY = (int32_t)(ANGULO_Y_MIN * PASSOS_POR_GRAU_Y);
-  maxPassosY = (int32_t)(ANGULO_Y_MAX * PASSOS_POR_GRAU_Y);
 
   noInterrupts();
   TCCR1A = 0;
   TCCR1B = 0;
   TCNT1  = 0;
-  OCR1A  = (16000000UL / (8UL * TIMER_FREQ)) - 1; // 49 -> 40 kHz
+  OCR1A  = (16000000UL / (8UL * TIMER_FREQ)) - 1; // 79 -> 25 kHz
   TCCR1B |= (1 << WGM12) | (1 << CS11);
   TIMSK1 |= (1 << OCIE1A);
   interrupts();
@@ -254,11 +289,10 @@ void setup() {
 void loop() {
   lerSerial();
 
-  if (!modoPosicaoAngular && (millis() - ultimoComandoMs > 500)) {
+  // Watchdog serial: se o cabo USB desconectar ou o script parar (>600ms sem pacotes), freia suavemente
+  if (!modoPosicaoAngular && (millis() - ultimoComandoMs > 600)) {
     velAlvoX = 0.0f;
     velAlvoY = 0.0f;
-    velAtualX = 0.0f;
-    velAtualY = 0.0f;
     digitalWrite(GATILHO_PIN, LOW);
   }
 
@@ -282,19 +316,32 @@ void loop() {
   }
 
   unsigned long agoraUs = micros();
-  if (agoraUs - ultimoCalculoRampaUs >= 2000) {
-    float dt = (agoraUs - ultimoCalculoRampaUs) / 1000000.0f;
+  if (agoraUs - ultimoCalculoRampaUs >= 4000) { // 250 Hz de atualização de rampa suave
+    float dt = (agoraUs - ultimoCalculoRampaUs) * 0.000001f;
     ultimoCalculoRampaUs = agoraUs;
 
-    float passoMaxX = ACELERACAO_X * dt;
-    float passoMaxY = ACELERACAO_Y * dt;
+    // Pré-acorda os drivers alguns milissegundos antes de começar a gerar pulsos
+    if (velAlvoX != 0.0f || velAlvoY != 0.0f) {
+      bool estavaDormindo = !driverEnergizado;
+      acordarDrivers();
+      if (estavaDormindo) {
+        return;
+      }
+      if (millis() - ultimoWakeMs < 5) {
+        return;
+      }
+    }
 
-    if (velAlvoX == 0.0f) velAtualX = 0.0f;
-    else if (velAtualX < velAlvoX) velAtualX = min(velAtualX + passoMaxX, velAlvoX);
+    bool freandoX = (velAlvoX == 0.0f) || ((velAlvoX * velAtualX) < 0.0f) || (fabs(velAlvoX) < fabs(velAtualX));
+    bool freandoY = (velAlvoY == 0.0f) || ((velAlvoY * velAtualY) < 0.0f) || (fabs(velAlvoY) < fabs(velAtualY));
+
+    float passoMaxX = (freandoX ? DESACELERACAO_X : ACELERACAO_X) * dt;
+    float passoMaxY = (freandoY ? DESACELERACAO_Y : ACELERACAO_Y) * dt;
+
+    if (velAtualX < velAlvoX)      velAtualX = min(velAtualX + passoMaxX, velAlvoX);
     else if (velAtualX > velAlvoX) velAtualX = max(velAtualX - passoMaxX, velAlvoX);
 
-    if (velAlvoY == 0.0f) velAtualY = 0.0f;
-    else if (velAtualY < velAlvoY) velAtualY = min(velAtualY + passoMaxY, velAlvoY);
+    if (velAtualY < velAlvoY)      velAtualY = min(velAtualY + passoMaxY, velAlvoY);
     else if (velAtualY > velAlvoY) velAtualY = max(velAtualY - passoMaxY, velAlvoY);
 
     aplicarVelocidadeHardware(velAtualX, velAtualY);

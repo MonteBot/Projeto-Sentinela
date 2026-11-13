@@ -2,7 +2,7 @@
 
 Sistema de torreta sentinela automatizada de 2 eixos (Pan/Tilt) com visão computacional em tempo real, reconhecimento facial (LBPH), telemetria de FPS ao vivo e trava de segurança em 4 camadas para disparo exclusivo na região do tórax.
 
-Desenvolvido por **Henrique Eugênio dos Santos** — Membro do **MonteBot** e **LINA** | Sistemas de Informação — **Universidade Federal de Uberlândia (UFU)**.
+Desenvolvido por **Henrique Eugenio dos Santos** — Membro do **MonteBot** e **LINA** | Sistemas de Informação — **Universidade Federal de Uberlândia (UFU)**.
 
 ---
 
